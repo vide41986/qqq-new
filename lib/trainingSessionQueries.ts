@@ -5,10 +5,33 @@
    planId: string
  ): Promise<TrainingSession[]> => {
    try {
+    // If trainerId is empty, get it from current user
+    let actualTrainerId = trainerId;
+    if (!trainerId) {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        console.error('No authenticated user found');
+        return [];
+      }
+      
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('user_id', user.id)
+        .single();
+      
+      if (!profile) {
+        console.error('No profile found for user');
+        return [];
+      }
+      
+      actualTrainerId = profile.id;
+    }
+    
      const { data: sessions, error } = await supabase
        .from('training_sessions')
        .select('*')
-       .eq('client_id', clientId)
+      .eq('trainer_id', actualTrainerId)
        .eq('plan_id', planId);
  
      if (error) {
