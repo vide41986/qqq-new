@@ -31,3 +31,5 @@
        `)
        .eq('id', templateId)
        .maybeSingle();
+   }
+ }
