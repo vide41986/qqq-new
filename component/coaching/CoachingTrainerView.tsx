@@ -6,45 +6,57 @@ import { TrainingSession } from '../../types/workout';
 
 const { width } = Dimensions.get('window');
 
-  const renderSessionCard = (session: any) => (
-    <TouchableOpacity 
-      key={session.id} 
-      style={styles.sessionCard}
-      onPress={() => router.push(`/workout-detail/${session.id}`)}
-    >
-      <View style={styles.sessionHeader}>
-        <View style={styles.sessionTime}>
-          <Clock size={16} color={colors.textSecondary} />
-          <Text style={styles.sessionTimeText}>
-            {session.scheduled_time || 'Time TBD'}
-          </Text>
-        </View>
-        <View style={[
-          styles.sessionStatusBadge,
-          { backgroundColor: session.status === 'scheduled' ? colors.success : colors.warning }
-        ]}>
-          <Text style={styles.sessionStatusText}>
-            {session.status === 'scheduled' ? 'Scheduled' : session.status}
-          </Text>
-        </View>
-      </View>
-      
-      <View style={styles.sessionInfo}>
-        <Text style={styles.sessionClient}>
-          {session.client?.full_name || 'Unknown Client'}
-        </Text>
-        <Text style={styles.sessionType}>
-          {session.session_type || session.type || 'Training Session'}
-        </Text>
-        <View style={styles.sessionDetails}>
-          <Text style={styles.sessionDetail}>
-            📍 {session.location || 'Location TBD'}
-          </Text>
-          <Text style={styles.sessionDetail}>
-            ⏱️ {session.duration_minutes || session.duration || 60} min
-          </Text>
-        </View>
-        {(session.notes || session.trainer_notes) && (
-          <Text style={styles.sessionNotes}>Notes: {session.notes}</Text>
-        )}
-      </View>
+  selectedFilterText: {
+    color: '#FFFFFF',
+  },
+  loadingContainer: {
+    padding: 40,
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontFamily: 'Inter-Regular',
+    fontSize: 16,
+    color: colors.textSecondary,
+  },
+  errorContainer: {
+    padding: 20,
+    alignItems: 'center',
+  },
+  errorText: {
+    fontFamily: 'Inter-Regular',
+    fontSize: 14,
+    color: colors.error,
+    textAlign: 'center',
+    marginBottom: 16,
+  },
+  retryButton: {
+    backgroundColor: colors.primary,
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  retryButtonText: {
+    fontFamily: 'Inter-SemiBold',
+    fontSize: 14,
+    color: '#FFFFFF',
+  },
+  emptyStateContainer: {
+    alignItems: 'center',
+    paddingVertical: 40,
+    paddingHorizontal: 20,
+  },
+  emptyStateTitle: {
+    fontFamily: 'Inter-SemiBold',
+    fontSize: 18,
+    color: colors.text,
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  emptyStateText: {
+    fontFamily: 'Inter-Regular',
+    fontSize: 14,
+    color: colors.textSecondary,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+});
