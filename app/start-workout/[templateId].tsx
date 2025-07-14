@@ -632,23 +632,10 @@ export default function StartWorkoutScreen() {
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Current Exercise */}
         <View style={styles.exerciseCard}>
-          {/* Show Custom Video Player if available */}
-          {currentExerciseVideo && (
-            <View style={styles.videoContainer}>
-              <CustomVideoPlayer
-                videoUrl={currentExerciseVideo}
-                exerciseName={currentExercise.exerciseName}
-                autoPlay={isWorkoutStarted && !isPaused}
-                showControls={true}
-                onVideoEnd={() => {
-                  if (audioEnabled) {
-                    speakText('Video completed. Ready for your set!');
-                  }
-                }}
-              />
-            </View>
-          )}
-          
+          {/* Show YouTube video if available */}
+          {currentExercise && template.exercises && template.exercises[currentExerciseIndex]?.exercise?.video_url ? (
+            <YouTubePlayer video_url={template.exercises[currentExerciseIndex].exercise.video_url} />
+          ) : null}
           <Text style={styles.exerciseName}>{currentExercise.exerciseName}</Text>
           
           <View style={styles.setsContainer}>
@@ -1228,6 +1215,60 @@ const createStyles = (colors: any) => StyleSheet.create({
     alignItems: 'center',
   },
   saveWorkoutText: {
+    fontFamily: 'Inter-SemiBold',
+    fontSize: 16,
+    color: '#FFFFFF',
+  },
+  audioSettingsContent: {
+    flex: 1,
+    padding: 20,
+  },
+  audioSetting: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  audioSettingLabel: {
+    fontFamily: 'Inter-SemiBold',
+    fontSize: 16,
+    color: colors.text,
+  },
+  audioToggle: {
+    backgroundColor: colors.border,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  audioToggleActive: {
+    backgroundColor: colors.primary,
+  },
+  audioToggleText: {
+    fontFamily: 'Inter-SemiBold',
+    fontSize: 14,
+    color: colors.textSecondary,
+  },
+  audioToggleTextActive: {
+    color: '#FFFFFF',
+  },
+  volumeContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    marginLeft: 20,
+  },
+  volumeSlider: {
+    flex: 1,
+    marginHorizontal: 12,
+  },
+  testAudioButton: {
+    backgroundColor: colors.primary,
+    borderRadius: 12,
+    paddingVertical: 16,
+    alignItems: 'center',
+    marginTop: 20,
+  },
+  testAudioButtonText: {
     fontFamily: 'Inter-SemiBold',
     fontSize: 16,
     color: '#FFFFFF',
