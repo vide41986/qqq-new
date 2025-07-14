@@ -451,15 +451,7 @@ export default function StartWorkoutScreen() {
       'Are you sure you want to exit? Your progress will be lost.',
       [
         { text: 'Cancel', style: 'cancel' },
-        { 
-          text: 'Exit', 
-          style: 'destructive', 
-          onPress: () => {
-            deactivateKeepAwake();
-            cleanupAudio();
-            router.back();
-          }
-        }
+        { text: 'Exit', style: 'destructive', onPress: () => router.back() }
       ]
     );
   };
@@ -640,10 +632,23 @@ export default function StartWorkoutScreen() {
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Current Exercise */}
         <View style={styles.exerciseCard}>
-          {/* Show YouTube video if available */}
-          {currentExercise && template.exercises && template.exercises[currentExerciseIndex]?.exercise?.video_url ? (
-            <YouTubePlayer video_url={template.exercises[currentExerciseIndex].exercise.video_url} />
-          ) : null}
+          {/* Show Custom Video Player if available */}
+          {currentExerciseVideo && (
+            <View style={styles.videoContainer}>
+              <CustomVideoPlayer
+                videoUrl={currentExerciseVideo}
+                exerciseName={currentExercise.exerciseName}
+                autoPlay={isWorkoutStarted && !isPaused}
+                showControls={true}
+                onVideoEnd={() => {
+                  if (audioEnabled) {
+                    speakText('Video completed. Ready for your set!');
+                  }
+                }}
+              />
+            </View>
+          )}
+          
           <Text style={styles.exerciseName}>{currentExercise.exerciseName}</Text>
           
           <View style={styles.setsContainer}>
