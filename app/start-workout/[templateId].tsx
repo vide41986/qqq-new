@@ -451,7 +451,15 @@ export default function StartWorkoutScreen() {
       'Are you sure you want to exit? Your progress will be lost.',
       [
         { text: 'Cancel', style: 'cancel' },
-        { text: 'Exit', style: 'destructive', onPress: () => router.back() }
+        { 
+          text: 'Exit', 
+          style: 'destructive', 
+          onPress: () => {
+            deactivateKeepAwake();
+            cleanupAudio();
+            router.back();
+          }
+        }
       ]
     );
   };
