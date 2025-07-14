@@ -9,6 +9,7 @@ import {
   Alert,
   Modal,
   Platform,
+  Slider,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { 
@@ -22,7 +23,9 @@ import {
   Plus,
   Minus,
   Timer,
-  RotateCcw
+  RotateCcw,
+  Volume2,
+  VolumeX
 } from 'lucide-react-native';
 import { useColorScheme, getColors } from '@/hooks/useColorScheme';
 import { router, useLocalSearchParams } from 'expo-router';
@@ -34,7 +37,9 @@ import { getWorkoutPlan } from '@/lib/planDatabase';
 import { supabase } from '@/lib/supabase';
 import { useAuth } from '@/contexts/AuthContext';
 import { createWorkoutSession } from '@/lib/workoutSessionQueries';
-import YouTubePlayer from '@/components/ui/YouTubePlayer';
+import CustomVideoPlayer from '@/components/ui/CustomVideoPlayer';
+import { useWorkoutAudio } from '@/hooks/useWorkoutAudio';
+import { activateKeepAwake, deactivateKeepAwake } from 'expo-keep-awake';
 
 export default function StartWorkoutScreen() {
   const colorScheme = useColorScheme();
@@ -56,15 +61,38 @@ export default function StartWorkoutScreen() {
   const [showRestTimer, setShowRestTimer] = useState(false);
   const [showFinishModal, setShowFinishModal] = useState(false);
   const [workoutNotes, setWorkoutNotes] = useState('');
+  const [audioEnabled, setAudioEnabled] = useState(true);
+  const [audioVolume, setAudioVolume] = useState(1.0);
+  const [showAudioSettings, setShowAudioSettings] = useState(false);
+  const [currentExerciseVideo, setCurrentExerciseVideo] = useState<string | null>(null);
 
   const workoutTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const restTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  
+  // Audio hook
+  const {
+    playReadySound,
+    playRestSound,
+    playNextExerciseSound,
+    playCompletionSound,
+    speakText,
+    setVolume,
+    cleanup: cleanupAudio
+  } = useWorkoutAudio();
 
   useEffect(() => {
     loadTemplate();
+    
+    // Activate keep awake when component mounts
+    activateKeepAwake();
+    
     return () => {
       if (workoutTimerRef.current) clearInterval(workoutTimerRef.current);
       if (restTimerRef.current) clearInterval(restTimerRef.current);
+      
+      // Cleanup when component unmounts
+      deactivateKeepAwake();
+      cleanupAudio();
     };
   }, []);
 
