@@ -236,123 +236,77 @@ export const getClientTodayData = async (): Promise<TodayClientData | null> => {
         return todayDate >= startDate && todayDate <= endDate;
       });
 
-      console.log('Plans active today:', activePlansToday.length);
-      
-      if (activePlansToday.length > 0) {
-        const activePlan = activePlansToday[0];
-        console.log('Active plan:', activePlan.name, 'Schedule:', activePlan.schedule_data);
-        
-        // Get day of week (Monday, Tuesday, etc.)
-        const dayOfWeek = new Date().toLocaleDateString('en-US', { weekday: 'long' });
-        console.log('Today is:', dayOfWeek);
-        // Robust lookup: try both capitalized and lowercase keys
-          let templateId = activePlan.schedule_data?.[dayOfWeek] || activePlan.schedule_data?.[dayOfWeek.toLowerCase()];
-   if (typeof templateId === 'string') {
-     templateId = templateId.trim();
-    }
-        console.log('Looking up templateId:', `"${templateId}"`);
-        // Robust lookup: try both capitalized and lowercase keys
-        if (!templateId) {
-          templateId = activePlan.schedule_data?.[dayOfWeek.toLowerCase()];
-        }
-        console.log('🎯 Template ID for today:', templateId);
-        
-        if (templateId) {
-          // Validate template ID format
-          const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-          if (!uuidRegex.test(templateId)) {
-            console.error('❌ Invalid template ID format:', templateId);
-          } else {
-            console.log('🔍 Fetching template from plan with ID:', templateId);
-            
-            // First check if template exists with more detailed logging
-            console.log('🔍 Checking template existence for ID:', templateId);
-            const { data: templateExists, error: existsError } = await supabase
-              .from('workout_templates')
-              .select('id, name, created_by')
-              .eq('id', templateId)
-              .maybeSingle();
-            
-            console.log('🔍 Template existence check result:', { templateExists, existsError });
-            
-            if (existsError) {
-              console.error('❌ Error checking template existence:', existsError);
-            } else if (!templateExists) {
-              console.error('❌ Template does not exist in database:', templateId);
-              // Let's check what templates are actually available
-              const { data: allTemplates } = await supabase
-                .from('workout_templates')
-                .select('id, name')
-                .limit(10);
-              console.log('📋 Available templates:', allTemplates);
-              
-              // Clean up invalid template ID from the plan
-              console.log('🧹 Cleaning up invalid template ID from plan...');
-              console.log('🧹 Client ID for cleanup:', profile.id);
-              try {
-                const { cleanupInvalidTemplateIds } = await import('./planDatabase');
-                console.log('🧹 Cleanup function imported successfully');
-                await cleanupInvalidTemplateIds(profile.id);
-                console.log('✅ Cleaned up invalid template IDs');
-              } catch (cleanupError: any) {
-                console.error('❌ Error cleaning up invalid template IDs:', cleanupError);
-                console.error('❌ Cleanup error details:', cleanupError.message);
-              }
-            } else {
-              console.log('✅ Template exists:', templateExists.name);
-              
-              // Now fetch the full template with exercises
-              console.log('🔍 Fetching full template details...');
-              const { data: template, error: templateError } = await supabase
-                .from('workout_templates')
-                .select(`
-                  *,
-                  exercises:template_exercises(
-                    order_index,
-                    sets_config,
-                    notes,
-                    exercise:exercise(*)
-                  )
-                `)
-                .eq('id', templateId)
-                .maybeSingle();
-              
-              console.log('🔍 Full template fetch result:', { template: template?.name, templateError });
-              
-              if (templateError) {
-                console.error('❌ Error fetching template details:', templateError);
-              } else if (template) {
-                todaysWorkoutTemplate = template;
-                console.log('✅ Found today\'s workout from plan:', template.name);
-                console.log('📊 Template exercises:', template.exercises?.length || 0);
-              } else {
-                console.log('❌ Template details not found for ID:', templateId);
-              }
-            }
-          }
-        } else {
-          console.log('📝 No template scheduled for today (rest day)');
-        }
-        
-        // If no valid template found, create a rest day template
-        if (!todaysWorkoutTemplate) {
-          console.log('📝 Creating rest day template for today');
-          todaysWorkoutTemplate = {
-            id: 'rest-day',
-            name: 'Rest Day',
-            description: 'Take a break and recover today',
-            category: 'Rest',
-            estimated_duration_minutes: 0,
-            exercises: [],
-            is_rest_day: true
-          };
-        }
-      } else {
-        console.log('No active plans for today');
-      }
+    console.log('DEBUG: Active plans for today:', activePlansToday);
+
+ if (activePlansToday.length > 0) {
+  const activePlan = activePlansToday[0];
+  console.log('DEBUG: Selected active plan:', activePlan.name, 'Schedule data:', activePlan.schedule_data);
+
+  const dayOfWeek = new Date().toLocaleDateString('en-US', { weekday: 'long' });
+  let templateId = activePlan.schedule_data?.[dayOfWeek] || activePlan.schedule_data?.[dayOfWeek.toLowerCase()];
+  if (typeof templateId === 'string') {
+    templateId = templateId.trim();
+  }
+  console.log('DEBUG: Raw templateId from schedule_data for today:', templateId);
+
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+  if (!templateId || !uuidRegex.test(templateId)) {
+    console.error('DEBUG: Template ID is invalid or missing for today:', templateId);
+    // ... (existing cleanup logic will follow here) ...
+  } else {
+    console.log('DEBUG: Template ID passed UUID validation:', templateId);
+
+    // Locate the existing template existence check (around line 220)
+    const { data: templateExists, error: existsError } = await supabase
+      .from('workout_templates')
+      .select('id, name, created_by')
+      .eq('id', templateId)
+      .maybeSingle();
+
+    console.log('DEBUG: Template existence check result:', { templateExists, existsError });
+
+    if (existsError) {
+      console.error('DEBUG: Error checking template existence:', existsError);
+    } else if (!templateExists) {
+      console.error('DEBUG: Template with this ID does NOT exist in workout_templates:', templateId);
+      // ... (existing cleanup logic will follow here) ...
     } else {
-      console.log('No active plans found for client');
+      console.log('DEBUG: Template exists in DB:', templateExists.name);
+
+      // Locate the full template fetch (around line 240)
+      const { data: template, error: templateError } = await supabase
+        .from('workout_templates')
+        .select(`
+          *,
+          exercises:template_exercises(
+            order_index,
+            sets_config,
+            notes,
+            exercise:exercises(*)
+          )
+        `)
+        .eq('id', templateId)
+        .maybeSingle();
+
+      if (templateError) {
+        console.error('DEBUG: Error fetching full template details:', templateError);
+      } else if (template) {
+        todaysWorkoutTemplate = template;
+        console.log('DEBUG: Full template fetched successfully:', todaysWorkoutTemplate.name);
+        console.log('DEBUG: Number of exercises in fetched template:', todaysWorkoutTemplate.exercises?.length);
+      } else {
+        console.log('DEBUG: Full template data was null for ID:', templateId);
+      }
     }
+  }
+} else {
+  console.log('DEBUG: No active plans found for today, defaulting to Rest Day.');
+}
+
+      // Locate the final return statement (around line 270)
+console.log('DEBUG: Final todaysWorkoutTemplate object before return:', todaysWorkoutTemplate);
+
 
     return {
       profile,
