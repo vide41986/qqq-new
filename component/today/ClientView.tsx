@@ -226,13 +226,18 @@ export default function TodayClientViewNew() {
   };
 
   const handleWorkoutCardPress = () => {
-    if (todaysWorkoutSession) {
-      // Handle both training sessions and workout sessions
-      if ('template_id' in todaysWorkoutSession && todaysWorkoutSession.template_id) {
-        router.push(`/todays-workout/${todaysWorkoutSession.template_id}` as any);
+    const workoutToView = clientData?.todaysWorkoutTemplate || todaysWorkoutSession;
+
+    if (workoutToView) {
+      // If it's a WorkoutTemplate (has exercises directly), navigate with template ID
+      if (workoutToView.exercises) {
+        router.push(`/todays-workout/${workoutToView.id}` as any);
+      } else if (workoutToView.template_id) {
+        // If it's a TrainingSession with a template_id
+        router.push(`/todays-workout/${workoutToView.template_id}` as any);
       } else {
-        // For training sessions without templates, navigate to session detail
-        router.push(`/workout-detail/${todaysWorkoutSession.id}`);
+        // Fallback for TrainingSession without a template_id
+        router.push(`/workout-detail/${workoutToView.id}`);
       }
     }
   };
@@ -264,7 +269,10 @@ export default function TodayClientViewNew() {
   };
 
   const renderTodaysWorkout = () => {
-    if (!todaysWorkoutSession) {
+    // NEW: Prioritize todaysWorkoutTemplate if available, otherwise use todaysWorkoutSession
+    const workoutToRender = clientData?.todaysWorkoutTemplate || todaysWorkoutSession;
+
+    if (!workoutToRender) {
       return (
         <LinearGradient
           colors={colorScheme === 'dark' ? ['#1E40AF', '#3730A3'] : ['#667EEA', '#764BA2']}
@@ -282,10 +290,11 @@ export default function TodayClientViewNew() {
       );
     }
 
-    // Handle both training sessions and workout sessions
-    const template = todaysWorkoutSession.template;
-    const sessionName = template?.name || todaysWorkoutSession.type || todaysWorkoutSession.session_type || 'Training Session';
-    const sessionDuration = template?.estimated_duration_minutes || todaysWorkoutSession.duration_minutes || todaysWorkoutSession.duration || 60;
+    // Use workoutToRender for displaying details
+    // Check if it's a WorkoutTemplate (has exercises directly) or a TrainingSession (has template property)
+    const template = workoutToRender.exercises ? workoutToRender : workoutToRender.template;
+    const sessionName = template?.name || workoutToRender.type || workoutToRender.session_type || 'Training Session';
+    const sessionDuration = template?.estimated_duration_minutes || workoutToRender.duration_minutes || workoutToRender.duration || 60;
     const sessionExercises = template?.exercises || [];
 
     return (
@@ -386,14 +395,19 @@ export default function TodayClientViewNew() {
   };
 
 
-  if (loading) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <Text style={styles.loadingText}>Loading your data...</Text>
-        </View>
-      </SafeAreaView>
-    );
+    const workoutToStart = clientData?.todaysWorkoutTemplate || todaysWorkoutSession;
+
+    if (workoutToStart) {
+      // If it's a WorkoutTemplate (has exercises directly), navigate with template ID
+      if (workoutToStart.exercises) {
+        router.push(`/start-workout/${workoutToStart.id}`);
+      } else if (workoutToStart.template_id) {
+        // If it's a TrainingSession with a template_id
+        router.push(`/start-workout/${workoutToStart.template_id}`);
+      } else {
+        // Fallback for TrainingSession without a template_id
+        router.push(`/workout-detail/${workoutToStart.id}`);
+      }
   }
 
   if (error) {
