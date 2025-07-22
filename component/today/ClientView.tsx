@@ -83,7 +83,7 @@ export default function TodayClientViewNew() {
     return (
       <View key={index} style={styles.exerciseItem}>
         <View style={styles.exerciseInfo}>
-          <Text style={styles.exerciseName}>{exercise.exercise.name}</Text>
+          <Text style={styles.exerciseName}>{exercise.exercise?.name}</Text>
           <Text style={styles.exerciseDetails}>
             Sets: {exercise.sets_config?.length || 0}{'  '}
             Reps: {exercise.sets_config?.[0]?.reps || 'N/A'}{'  '}
@@ -214,13 +214,17 @@ export default function TodayClientViewNew() {
   };
 
   const handleStartWorkout = () => {
-    if (todaysWorkoutSession) {
-      // Handle both training sessions and workout sessions
-      if ('template_id' in todaysWorkoutSession && todaysWorkoutSession.template_id) {
-        router.push(`/start-workout/${todaysWorkoutSession.id}`);
+    const workoutToStart = clientData?.todaysWorkoutTemplate || todaysWorkoutSession;
+
+    if (workoutToStart) {
+      // If it's a WorkoutTemplate, navigate to start-workout with its ID
+      if (workoutToStart.id) { // Assuming WorkoutTemplate has an 'id'
+        router.push(`/start-workout/${workoutToStart.id}`);
+      } else if (workoutToStart.template_id) { // If it's a TrainingSession with a template_id
+        router.push(`/start-workout/${workoutToStart.template_id}`);
       } else {
-        // For training sessions without templates, navigate to session detail
-        router.push(`/start-workout/session/${todaysWorkoutSession.id}`);
+        // Fallback for TrainingSession without a template_id, if applicable
+        router.push(`/workout-detail/${workoutToStart.id}`);
       }
     }
   };
@@ -229,14 +233,13 @@ export default function TodayClientViewNew() {
     const workoutToView = clientData?.todaysWorkoutTemplate || todaysWorkoutSession;
 
     if (workoutToView) {
-      // If it's a WorkoutTemplate (has exercises directly), navigate with template ID
-      if (workoutToView.exercises) {
+      // If it's a WorkoutTemplate, navigate to todays-workout with its ID
+      if (workoutToView.id) { // Assuming WorkoutTemplate has an 'id'
         router.push(`/todays-workout/${workoutToView.id}` as any);
-      } else if (workoutToView.template_id) {
-        // If it's a TrainingSession with a template_id
+      } else if (workoutToView.template_id) { // If it's a TrainingSession with a template_id
         router.push(`/todays-workout/${workoutToView.template_id}` as any);
       } else {
-        // Fallback for TrainingSession without a template_id
+        // Fallback for TrainingSession without a template_id, if applicable
         router.push(`/workout-detail/${workoutToView.id}`);
       }
     }
@@ -269,38 +272,37 @@ export default function TodayClientViewNew() {
   };
 
   const renderTodaysWorkout = () => {
-    // NEW: Prioritize todaysWorkoutTemplate if available, otherwise use todaysWorkoutSession
     const workoutToRender = clientData?.todaysWorkoutTemplate || todaysWorkoutSession;
+    console.log('workoutToRender:', workoutToRender);
+    // if (!workoutToRender) {
+    //   return (
+    //     <LinearGradient
+    //       colors={colorScheme === 'dark' ? ['#1E40AF', '#3730A3'] : ['#667EEA', '#764BA2']}
+    //       style={styles.restDayCard}
+    //       start={{ x: 0, y: 0 }}
+    //       end={{ x: 1, y: 1 }}
+    //     >
+    //       <View style={styles.restDayContent}>
+    //         <Text style={styles.restDayLabel}>REST DAY</Text>
+    //         <Text style={styles.restDayMessage}>
+    //           Hoo-ray it's your rest-day 🌴
+    //         </Text>
+    //       </View>
+    //     </LinearGradient>
+    //   );
+    // }
 
-    if (!workoutToRender) {
-      return (
-        <LinearGradient
-          colors={colorScheme === 'dark' ? ['#1E40AF', '#3730A3'] : ['#667EEA', '#764BA2']}
-          style={styles.restDayCard}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-        >
-          <View style={styles.restDayContent}>
-            <Text style={styles.restDayLabel}>REST DAY</Text>
-            <Text style={styles.restDayMessage}>
-              Hoo-ray it's your rest-day 🌴
-            </Text>
-          </View>
-        </LinearGradient>
-      );
-    }
-
-    // Use workoutToRender for displaying details
-    // Check if it's a WorkoutTemplate (has exercises directly) or a TrainingSession (has template property)
-    const template = workoutToRender.exercises ? workoutToRender : workoutToRender.template;
-    const sessionName = template?.name || workoutToRender.type || workoutToRender.session_type || 'Training Session';
-    const sessionDuration = template?.estimated_duration_minutes || workoutToRender.duration_minutes || workoutToRender.duration || 60;
+    // Handle both training sessions and workout sessions
+ 
+    const template = workoutToRender;
+    const sessionName = template?.name || 'Training Session';
+    const sessionDuration = template?.estimated_duration_minutes || 60;
     const sessionExercises = template?.exercises || [];
 
     return (
-      <TouchableOpacity 
+      <TouchableOpacity
         style={styles.workoutCardContainer}
-        onPress={handleWorkoutCardPress}
+        onPress={handleWorkoutCardPress} // This will be updated below
         activeOpacity={0.9}
       >
         <LinearGradient
@@ -311,7 +313,7 @@ export default function TodayClientViewNew() {
         >
           {/* Hero Image */}
           <View style={styles.workoutHeroContainer}>
-            <Image 
+            <Image
               source={{ uri: template?.image_url || template?.thumbnail_url || 'https://images.pexels.com/photos/1552242/pexels-photo-1552242.jpeg?auto=compress&cs=tinysrgb&w=800' }}
               style={styles.workoutHeroImage}
             />
@@ -322,7 +324,9 @@ export default function TodayClientViewNew() {
                 <View style={styles.workoutMeta}>
                   <View style={styles.metaItem}>
                     <Dumbbell size={16} color="rgba(255, 255, 255, 0.8)" />
-                    <Text style={styles.metaText}>{sessionExercises.length} exercises</Text>
+                    <Text style={styles.metaItem}>
+                      {sessionExercises.length} exercises
+                    </Text>
                   </View>
                   <View style={styles.metaItem}>
                     <Clock size={16} color="rgba(255, 255, 255, 0.8)" />
@@ -330,7 +334,7 @@ export default function TodayClientViewNew() {
                   </View>
                 </View>
               </View>
-              <TouchableOpacity style={styles.playButton} onPress={handleStartWorkout}>
+              <TouchableOpacity style={styles.playButton} onPress={handleStartWorkout}> {/* This will be updated below */}
                 <Play size={24} color="#FFFFFF" />
               </TouchableOpacity>
             </View>
@@ -340,23 +344,23 @@ export default function TodayClientViewNew() {
           <View style={styles.exercisePreview}>
             <Text style={styles.exercisePreviewTitle}>Exercises Preview</Text>
             {sessionExercises.length > 0 ? (
-              <ScrollView 
-                horizontal 
+              <ScrollView
+                horizontal
                 showsHorizontalScrollIndicator={false}
                 style={styles.exerciseScrollView}
                 contentContainerStyle={styles.exerciseScrollContent}
               >
                 {sessionExercises.slice(0, 5).map((exercise: any, index: number) => (
                   <View key={exercise.id} style={styles.exercisePreviewItem}>
-                    <Image 
-                      source={{ uri: exercise.exercise.image_url || getExerciseImage(exercise.exercise.name, index) }}
+                    <Image
+                      source={{ uri: exercise.exercise?.template_url || getExerciseImage(exercise.exercise?.name, index) }}
                       style={styles.exercisePreviewImage}
                     />
                     <Text style={styles.exercisePreviewName} numberOfLines={2}>
-                      {exercise.exercise.name}
+                      {exercise.exercise?.name}
                     </Text>
                     <Text style={styles.exercisePreviewSets}>
-                      {exercise.sets_config.length} sets
+                      {exercise.sets_config?.length} sets
                     </Text>
                   </View>
                 ))}
@@ -377,13 +381,13 @@ export default function TodayClientViewNew() {
                 <Text style={styles.noExercisesSubtext}>Details will be provided by your trainer</Text>
               </View>
             )}
-            
+
             <View style={styles.workoutActions}>
-              <TouchableOpacity style={styles.viewDetailsButton} onPress={handleWorkoutCardPress}>
+              <TouchableOpacity style={styles.viewDetailsButton} onPress={handleWorkoutCardPress}> {/* This will be updated below */}
                 <Text style={styles.viewDetailsText}>View Details</Text>
                 <ChevronRight size={16} color="rgba(255, 255, 255, 0.8)" />
               </TouchableOpacity>
-              <TouchableOpacity style={styles.startWorkoutButton} onPress={handleStartWorkout}>
+              <TouchableOpacity style={styles.startWorkoutButton} onPress={handleStartWorkout}> {/* This will be updated below */}
                 <Play size={16} color="#FFFFFF" />
                 <Text style={styles.startWorkoutText}>Start Workout</Text>
               </TouchableOpacity>
@@ -395,19 +399,15 @@ export default function TodayClientViewNew() {
   };
 
 
-    const workoutToStart = clientData?.todaysWorkoutTemplate || todaysWorkoutSession;
 
-    if (workoutToStart) {
-      // If it's a WorkoutTemplate (has exercises directly), navigate with template ID
-      if (workoutToStart.exercises) {
-        router.push(`/start-workout/${workoutToStart.id}`);
-      } else if (workoutToStart.template_id) {
-        // If it's a TrainingSession with a template_id
-        router.push(`/start-workout/${workoutToStart.template_id}`);
-      } else {
-        // Fallback for TrainingSession without a template_id
-        router.push(`/workout-detail/${workoutToStart.id}`);
-      }
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>Loading your data...</Text>
+        </View>
+      </SafeAreaView>
+    );
   }
 
   if (error) {
