@@ -145,6 +145,8 @@ export default function TodayClientViewNew() {
   };
 
   const renderTodayPlan = () => {
+    console.log('DEBUG: clientData.todayPlan in renderTodayPlan:', clientData.todayPlan); // Add this line
+
     if (!clientData.todayPlan?.template) {
       return (
         <View style={styles.noPlanContainer}>
