@@ -246,10 +246,10 @@ export const getClientTodayData = async (): Promise<TodayClientData | null> => {
         const dayOfWeek = new Date().toLocaleDateString('en-US', { weekday: 'long' });
         console.log('Today is:', dayOfWeek);
         // Robust lookup: try both capitalized and lowercase keys
-        let templateId = activePlan.schedule_data?.[dayOfWeek] || activePlan.schedule_data?.[dayOfWeek.toLowerCase()];
-        if (typeof templateId === 'string') {
-          templateId = templateId.trim().toLowerCase();
-        }
+          let templateId = activePlan.schedule_data?.[dayOfWeek] || activePlan.schedule_data?.[dayOfWeek.toLowerCase()];
+   if (typeof templateId === 'string') {
+     templateId = templateId.trim();
+    }
         console.log('Looking up templateId:', `"${templateId}"`);
         // Robust lookup: try both capitalized and lowercase keys
         if (!templateId) {
