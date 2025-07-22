@@ -427,8 +427,8 @@ export default function TodayClientViewNew() {
 
         {/* Today's Workout */}
         {renderTodaysWorkout()}
-        {renderWeeklyWorkouts}
-        {renderTodayPlan}
+       {renderWeeklyWorkouts()}
+    {renderTodayPlan()}
 
         {/* Fitness Goal Card */}
         <TouchableOpacity style={styles.goalCard} onPress={handleGoalPress}>
