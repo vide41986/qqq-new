@@ -139,7 +139,7 @@ export const getClientTodayData = async (): Promise<TodayClientData | null> => {
           *,
           exercises:template_exercises(
             *,
-            exercise:exercise_id(*)
+            exercise:exercise(*)
           )
         )
       `)
@@ -158,7 +158,7 @@ export const getClientTodayData = async (): Promise<TodayClientData | null> => {
           *,
           exercises:template_exercises(
             *,
-            exercise:exercise_id(*)
+            exercise:exercise(*)
           )
         )
       `)
@@ -311,7 +311,7 @@ export const getClientTodayData = async (): Promise<TodayClientData | null> => {
                     order_index,
                     sets_config,
                     notes,
-                    exercise:exercise_id(*)
+                    exercise:exercise(*)
                   )
                 `)
                 .eq('id', templateId)
