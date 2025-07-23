@@ -36,6 +36,8 @@ import { supabase } from '@/lib/supabase'; // Import supabase
 import { getClientTrainingSessions } from '../../lib/trainingSessionQueries'; // Import getClientTrainingSessions
 import { markPastSessionsAsMissed } from '../../lib/trainingSessionQueries';
 import { TrainingSession } from '../../lib/database'; // Import TrainingSession type
+import { WorkoutTemplate } from '../../types/workout';
+
 
 const { width } = Dimensions.get('window');
 
