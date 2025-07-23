@@ -153,7 +153,8 @@ export default function CoachingClientView() {
           // Handle sessions with template data
           if (session.template) {
             template = session.template;
-          } else if (session.template_id) {
+          }
+          else if (session.template_id) {
             const templateData = workoutTemplates.find(t => t.id === session.template_id);
             if (templateData) {
               template = templateData;
