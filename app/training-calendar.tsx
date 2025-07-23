@@ -38,7 +38,7 @@ import { TrainingSession } from '@/types/workout'; // Import TrainingSession typ
 interface WeeklyWorkout {
   dayName: string;
   dayNumber: number;
-  template: { id: string; name: string } | null;
+  template: any | null;
   completed: boolean;
   missed: boolean;
   sessionId?: string;
@@ -173,7 +173,7 @@ export default function TrainingCalendarScreen() {
         const workoutSessionData: WeeklyWorkout = {
           dayName: dayNames[index],
           dayNumber: dayNumber,
-          template: session?.template ? { id: session.template.id, name: session.template.name } : null,
+          template: session?.template || null,
           completed: false,
           missed: false,
           sessionId: session?.id,

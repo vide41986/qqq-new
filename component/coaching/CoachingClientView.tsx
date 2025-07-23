@@ -148,20 +148,14 @@ export default function CoachingClientView() {
             scheduled_time: session.scheduled_time
           });
           
-          // Handle sessions with template_id
-          if (session.template_id) {
+          // Handle sessions with template data
+          if (session.template) {
+            template = session.template;
+          } else if (session.template_id) {
             const templateData = workoutTemplates.find(t => t.id === session.template_id);
             if (templateData) {
-              template = { id: templateData.id, name: templateData.name };
-            } else {
-              template = { id: session.template_id, name: 'Workout' };
+              template = templateData;
             }
-          } else {
-            // Handle custom sessions without template_id
-            template = { 
-              id: session.id, 
-              name: session.session_type || session.type || 'Custom Session' 
-            };
           }
           
           sessionId = session.id;
@@ -824,7 +818,7 @@ const createStyles = (colors: any) => StyleSheet.create({
     color: 'rgba(255, 255, 255, 0.8)',
   },
   missedDayTime: {
-    color: 'rgba(255, 255, 255, 0.8)',
+    color: colors.error,
   },
   weekSummary: {
     fontFamily: 'Inter-Regular',

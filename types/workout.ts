@@ -115,7 +115,7 @@ export interface TrainingSession {
   scheduled_date: string;
   scheduled_time: string | null;
   template?: WorkoutTemplate;
-
+  template: WorkoutTemplate | null;
   /**
    * Some tables use `duration_minutes` while other parts of the app were built
    * with a simpler `duration` field.  Keep both optional to maintain
