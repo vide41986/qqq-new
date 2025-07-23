@@ -42,7 +42,7 @@ const { width } = Dimensions.get('window');
 interface WeeklyWorkout {
   dayName: string;
   dayNumber: number;
-  template: { id: string; name: string } | null;
+  template: WorkoutTemplate | null;
   completed: boolean;
   missed: boolean;
   sessionId?: string;
