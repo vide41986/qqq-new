@@ -189,7 +189,7 @@ export default function TodayNutritionistViewWithData() {
           <View style={styles.actionGrid}>
             <TouchableOpacity 
               style={styles.actionButton}
-              onPress={() => router.push('/(app)/meal-plans/new')}
+              onPress={() => router.push('/meal-plans/new')}
             >
               <Plus size={20} color={colors.primary} />
               <Text style={styles.actionText}>New Meal Plan</Text>
