@@ -226,3 +226,57 @@ export interface ActiveExercise {
   notes: string;
 }
 
+// Meal Plan Interfaces
+export interface MealPlan {
+  id: string;
+  client_id: string;
+  nutritionist_id: string;
+  name: string;
+  description?: string;
+  start_date: string;
+  end_date: string;
+  status: 'draft' | 'active' | 'completed' | 'cancelled';
+  title_image_url?: string;
+  created_at: string;
+  updated_at: string;
+  client_name?: string;
+}
+
+export interface MealPlanDay {
+  id: string;
+  meal_plan_id: string;
+  date: string;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MealPlanEntry {
+  id: string;
+  meal_plan_day_id: string;
+  meal_type_id: string;
+  title: string;
+  description?: string;
+  time?: string;
+  calories?: number;
+  protein_g?: number;
+  carbs_g?: number;
+  fat_g?: number;
+  fiber_g?: number;
+  image_url?: string;
+  is_ai_generated?: boolean;
+  quantity?: string;
+  notes?: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface MealType {
+  id: string;
+  name: string;
+  emoji: string;
+  color: string;
+  sort_order: number;
+  created_at: string;
+}
+
