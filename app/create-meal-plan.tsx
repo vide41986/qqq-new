@@ -210,23 +210,59 @@ export default function CreateMealPlanScreen() {
         setUploadingImage(true);
         const imageUri = result.assets[0].uri;
         
-        const uploadedUrl = await uploadImageWithRetry(imageUri, 'meal-images');
-        
-        if (uploadedUrl) {
-          if (isForMeal && dayIndex !== undefined && mealIndex !== undefined) {
-            updateMealImage(dayIndex, mealIndex, uploadedUrl, false);
-          } else {
-            setTitleImage(uploadedUrl);
+        try {
+          // Get the current user ID to create a user-specific folder
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) {
+            throw new Error('User not authenticated');
           }
-          Alert.alert('Success', 'Image uploaded successfully!');
-        } else {
-          Alert.alert('Error', 'Failed to upload image. Please try again.');
+          
+          // Create a unique filename with timestamp
+          const timestamp = new Date().getTime();
+          const fileExt = imageUri.split('.').pop();
+          const fileName = `${user.id}/${timestamp}.${fileExt}`;
+          
+          // Upload the file to the meal-plans bucket
+          const { data: uploadData, error: uploadError } = await supabase.storage
+            .from('meal-plans')
+            .upload(fileName, {
+              uri: imageUri,
+              type: `image/${fileExt}`,
+              name: fileName,
+            });
+
+          if (uploadError) {
+            console.error('Upload error:', uploadError);
+            throw uploadError;
+          }
+
+          // Get the public URL of the uploaded file
+          const { data: { publicUrl } } = supabase.storage
+            .from('meal-plans')
+            .getPublicUrl(fileName);
+
+          if (publicUrl) {
+            if (isForMeal && dayIndex !== undefined && mealIndex !== undefined) {
+              updateMealImage(dayIndex, mealIndex, publicUrl, false);
+            } else {
+              setTitleImage(publicUrl);
+            }
+          } else {
+            throw new Error('Failed to get public URL');
+          }
+        } catch (error) {
+          console.error('Upload error:', error);
+          Alert.alert(
+            'Upload Failed', 
+            error.message || 'Failed to upload image. Please try again.'
+          );
+        } finally {
+          setUploadingImage(false);
         }
       }
     } catch (error) {
-      console.error('Error uploading image:', error);
-      Alert.alert('Error', 'Failed to upload image. Please try again.');
-    } finally {
+      console.error('Error in handleImageUpload:', error);
+      Alert.alert('Error', 'An unexpected error occurred. Please try again.');
       setUploadingImage(false);
     }
   };
@@ -235,6 +271,12 @@ export default function CreateMealPlanScreen() {
     try {
       setGeneratingAI(true);
       
+      // Get current user ID for storage path
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        throw new Error('User not authenticated');
+      }
+
       // Mock AI image generation - replace with actual AI service integration
       const mockAIImages = [
         'https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg?auto=compress&cs=tinysrgb&w=800',
@@ -247,18 +289,55 @@ export default function CreateMealPlanScreen() {
       // Simulate API delay
       await new Promise(resolve => setTimeout(resolve, 2000));
       
-      const randomImage = mockAIImages[Math.floor(Math.random() * mockAIImages.length)];
+      // In a real implementation, you would call your AI image generation API here
+      // For now, we'll use a mock image URL
+      const aiImageUrl = mockAIImages[Math.floor(Math.random() * mockAIImages.length)];
       
-      if (isForMeal && dayIndex !== undefined && mealIndex !== undefined) {
-        updateMealImage(dayIndex, mealIndex, randomImage, true);
-      } else {
-        setTitleImage(randomImage);
+      // Download the AI-generated image
+      const response = await fetch(aiImageUrl);
+      const blob = await response.blob();
+      
+      // Create a unique filename with timestamp
+      const timestamp = new Date().getTime();
+      const fileExt = 'jpg'; // Assuming JPG for AI-generated images
+      const fileName = `${user.id}/ai_${timestamp}.${fileExt}`;
+      
+      // Upload the AI-generated image to Supabase storage
+      const { error: uploadError } = await supabase.storage
+        .from('meal-plans')
+        .upload(fileName, blob, {
+          contentType: 'image/jpeg',
+          upsert: true
+        });
+
+      if (uploadError) {
+        console.error('AI image upload error:', uploadError);
+        throw uploadError;
+      }
+
+      // Get the public URL of the uploaded file
+      const { data: { publicUrl } } = supabase.storage
+        .from('meal-plans')
+        .getPublicUrl(fileName);
+
+      if (!publicUrl) {
+        throw new Error('Failed to get public URL for AI-generated image');
       }
       
-      Alert.alert('Success', 'AI image generated successfully!');
+      // Update the UI with the new image
+      if (isForMeal && dayIndex !== undefined && mealIndex !== undefined) {
+        updateMealImage(dayIndex, mealIndex, publicUrl, true);
+      } else {
+        setTitleImage(publicUrl);
+      }
+      
+      Alert.alert('Success', 'AI image generated and saved successfully!');
     } catch (error) {
-      console.error('Error generating AI image:', error);
-      Alert.alert('Error', 'Failed to generate AI image. Please try again.');
+      console.error('Error in AI image generation:', error);
+      Alert.alert(
+        'Generation Failed', 
+        error.message || 'Failed to generate AI image. Please try again.'
+      );
     } finally {
       setGeneratingAI(false);
     }
