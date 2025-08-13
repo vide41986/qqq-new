@@ -1,817 +1,677 @@
 import React, { useState, useEffect } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  ScrollView,
-  TouchableOpacity,
-  Image,
-  RefreshControl,
-  ActivityIndicator,
-  Alert,
-  Dimensions,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import {
-  ArrowLeft,
-  Plus,
-  Calendar,
-  Clock,
-  Users,
-  ChefHat,
-  Edit3,
-  Trash2,
-  Eye,
-  Star,
-  MoreVertical,
-  Filter,
-  Search,
-} from 'lucide-react-native';
-import { useColorScheme, getColors } from '@/hooks/useColorScheme';
+import { View, Text, TextInput, TouchableOpacity, ScrollView, StyleSheet, Switch, Modal, FlatList } from 'react-native';
+// Custom selector will be used instead of Picker
 import { router } from 'expo-router';
-import { MealPlan } from '@/types/workout';
-import { getNutritionistMealPlans, deleteMealPlan } from '@/lib/mealPlanQueries';
+import { supabase } from '@/lib/supabase';
+import { MealItem, MealPlanTemplate } from '@/types/meal';
+import { useAuth } from '@/contexts/AuthContext';
+import { Plus, X, ChevronDown, ChevronUp } from 'lucide-react-native';
+import { useColorScheme, Colors } from '@/hooks/useColorScheme';
 
-const { width } = Dimensions.get('window');
+type DayOfWeek = 'Monday' | 'Tuesday' | 'Wednesday' | 'Thursday' | 'Friday' | 'Saturday' | 'Sunday';
+type MealTime = 'breakfast' | 'morning_snack' | 'lunch' | 'afternoon_snack' | 'dinner' | 'evening_snack';
 
-export default function MealPlansScreen() {
-  const colorScheme = useColorScheme() ?? 'light';
-  const colors = getColors(colorScheme);
-  const styles = createStyles(colors);
+interface MealPlanFormProps {
+  clientId: string;
+  onSuccess?: () => void;
+  initialData?: MealPlanTemplate;
+}
 
-  const [mealPlans, setMealPlans] = useState<MealPlan[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
+export default function MealPlanForm({ clientId, onSuccess, initialData }: MealPlanFormProps) {
+  const colorScheme = useColorScheme();
+  const colors = Colors[colorScheme === 'dark' ? 'dark' : 'light'];
+  const { user } = useAuth();
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [selectedFilter, setSelectedFilter] = useState<'all' | 'active' | 'draft' | 'completed'>('all');
+  const [mealItems, setMealItems] = useState<MealItem[]>([]);
+  const [selectedMeal, setSelectedMeal] = useState<string>('');
+  const [expandedDay, setExpandedDay] = useState<DayOfWeek | null>(null);
+  const [showMealSelector, setShowMealSelector] = useState(false);
+  
+  // Modal for meal selection
+  const renderMealItem = ({ item }: { item: MealItem }) => (
+    <TouchableOpacity
+      style={styles.mealItem}
+      onPress={() => {
+        setSelectedMeal(item.id);
+        setShowMealSelector(false);
+      }}
+    >
+      <Text style={styles.mealItemText}>{item.name}</Text>
+    </TouchableOpacity>
+  );
 
+  // Form state
+  const [formData, setFormData] = useState<{
+    name: string;
+    description: string;
+    category: string;
+    targetCalories: string;
+    targetProtein: string;
+    targetCarbs: string;
+    targetFat: string;
+    durationWeeks: string;
+    isPublic: boolean;
+    meals: Record<DayOfWeek, Array<{
+      mealId: string;
+      mealTime: MealTime;
+      notes: string;
+    }>>;
+  }>({
+    name: initialData?.name || '',
+    description: initialData?.description || '',
+    category: initialData?.category || 'General',
+    targetCalories: initialData?.target_calories?.toString() || '',
+    targetProtein: initialData?.target_protein_g?.toString() || '',
+    targetCarbs: initialData?.target_carbs_g?.toString() || '',
+    targetFat: initialData?.target_fat_g?.toString() || '',
+    durationWeeks: initialData?.duration_weeks?.toString() || '4',
+    isPublic: initialData?.is_public || false,
+    meals: {
+      Monday: [],
+      Tuesday: [],
+      Wednesday: [],
+      Thursday: [],
+      Friday: [],
+      Saturday: [],
+      Sunday: []
+    }
+  });
+
+  // Load meal items and initial data
   useEffect(() => {
-    loadMealPlans();
-  }, []);
+    loadMealItems();
+    
+    // If editing, populate form with initial data
+    if (initialData) {
+      const mealsByDay: Record<string, any[]> = {};
+      
+      initialData.meals.forEach(meal => {
+        const day = meal.day_of_week as DayOfWeek;
+        if (!mealsByDay[day]) {
+          mealsByDay[day] = [];
+        }
+        mealsByDay[day].push({
+          mealId: meal.meal_id,
+          mealTime: meal.meal_time as MealTime,
+          notes: meal.notes || ''
+        });
+      });
+      
+      setFormData(prev => ({
+        ...prev,
+        meals: {
+          ...prev.meals,
+          ...mealsByDay
+        }
+      }));
+    }
+  }, [initialData]);
 
-  const loadMealPlans = async () => {
+  const loadMealItems = async () => {
     try {
-      setLoading(true);
-      setError(null);
-      const plans = await getNutritionistMealPlans();
-      setMealPlans(plans);
-    } catch (err) {
-      console.error('Error loading meal plans:', err);
-      setError('Failed to load meal plans. Please try again.');
+      const { data, error } = await supabase
+        .from('meal_items')
+        .select('*')
+        .or(`created_by.eq.${user?.id},is_public.eq.true`)
+        .order('name');
+      
+      if (error) throw error;
+      setMealItems(data || []);
+      
+      // Auto-select first meal if available
+      if (data?.length > 0 && !selectedMeal) {
+        setSelectedMeal(data[0].id);
+      }
+    } catch (error) {
+      console.error('Error loading meal items:', error);
+      setError('Failed to load meal items');
+    }
+  };
+
+  const handleAddMeal = (day: DayOfWeek, mealTime: MealTime) => {
+    if (!selectedMeal) return;
+    
+    setFormData(prev => ({
+      ...prev,
+      meals: {
+        ...prev.meals,
+        [day]: [
+          ...(prev.meals[day] || []),
+          {
+            mealId: selectedMeal,
+            mealTime,
+            notes: ''
+          }
+        ]
+      }
+    }));
+  };
+
+  const handleRemoveMeal = (day: DayOfWeek, index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      meals: {
+        ...prev.meals,
+        [day]: prev.meals[day].filter((_, i) => i !== index)
+      }
+    }));
+  };
+
+  const handleSubmit = async () => {
+    if (!formData.name) {
+      setError('Please enter a name for the meal plan');
+      return;
+    }
+    
+    setLoading(true);
+    setError(null);
+    
+    try {
+      // Create or update meal plan template
+      const { data: template, error: templateError } = initialData?.id
+        ? await supabase
+            .from('meal_plan_templates')
+            .update({
+              name: formData.name,
+              description: formData.description,
+              category: formData.category,
+              target_calories: formData.targetCalories ? Number(formData.targetCalories) : null,
+              target_protein_g: formData.targetProtein ? Number(formData.targetProtein) : null,
+              target_carbs_g: formData.targetCarbs ? Number(formData.targetCarbs) : null,
+              target_fat_g: formData.targetFat ? Number(formData.targetFat) : null,
+              duration_weeks: formData.durationWeeks ? Number(formData.durationWeeks) : 4,
+              is_public: formData.isPublic,
+              updated_at: new Date().toISOString()
+            })
+            .eq('id', initialData.id)
+            .select('*')
+            .single()
+        : await supabase
+            .from('meal_plan_templates')
+            .insert([{
+              name: formData.name,
+              description: formData.description,
+              category: formData.category,
+              target_calories: formData.targetCalories ? Number(formData.targetCalories) : null,
+              target_protein_g: formData.targetProtein ? Number(formData.targetProtein) : null,
+              target_carbs_g: formData.targetCarbs ? Number(formData.targetCarbs) : null,
+              target_fat_g: formData.targetFat ? Number(formData.targetFat) : null,
+              duration_weeks: formData.durationWeeks ? Number(formData.durationWeeks) : 4,
+              is_public: formData.isPublic,
+              created_by: user?.id
+            }])
+            .select('*')
+            .single();
+      
+      if (templateError) throw templateError;
+      if (!template) throw new Error('Failed to save meal plan');
+      
+      // Delete existing meals if updating
+      if (initialData?.id) {
+        const { error: deleteError } = await supabase
+          .from('meal_plan_meals')
+          .delete()
+          .eq('meal_plan_id', template.id);
+        
+        if (deleteError) throw deleteError;
+      }
+      
+      // Insert new meals
+      const mealsToInsert = Object.entries(formData.meals).flatMap(([day, meals]) => 
+        meals.map((meal, index) => ({
+          meal_plan_id: template.id,
+          meal_id: meal.mealId,
+          meal_time: meal.mealTime,
+          day_of_week: day,
+          order_index: index,
+          notes: meal.notes
+        }))
+      );
+      
+      if (mealsToInsert.length > 0) {
+        const { error: mealsError } = await supabase
+          .from('meal_plan_meals')
+          .insert(mealsToInsert);
+        
+        if (mealsError) throw mealsError;
+      }
+      
+      // If clientId is provided, assign this meal plan to the client
+      if (clientId) {
+        const { error: clientPlanError } = await supabase
+          .from('client_meal_plans')
+          .insert([{
+            client_id: clientId,
+            nutritionist_id: user?.id || '',
+            template_id: template.id,
+            name: template.name,
+            description: template.description,
+            start_date: new Date().toISOString(),
+            end_date: new Date(
+              new Date().setDate(new Date().getDate() + (Number(formData.durationWeeks) * 7))
+            ).toISOString(),
+            status: 'active'
+          }]);
+        
+        if (clientPlanError) throw clientPlanError;
+      }
+      
+      if (onSuccess) {
+        onSuccess();
+      } else {
+        router.back();
+      }
+      
+    } catch (error) {
+      console.error('Error saving meal plan:', error);
+      setError(error instanceof Error ? error.message : 'Failed to save meal plan');
     } finally {
       setLoading(false);
     }
   };
 
-  const handleRefresh = async () => {
-    setRefreshing(true);
-    await loadMealPlans();
-    setRefreshing(false);
+  const toggleDay = (day: DayOfWeek) => {
+    setExpandedDay(expandedDay === day ? null : day);
   };
 
-  const handleCreateNew = () => {
-    router.push('/create-meal-plan');
-  };
-
-  const handleViewPlan = (planId: string) => {
-    router.push(`/meal-plans/${planId}`);
-  };
-
-  const handleEditPlan = (planId: string) => {
-    router.push(`/create-meal-plan?edit=${planId}`);
-  };
-
-  const handleDeletePlan = (plan: MealPlan) => {
-    Alert.alert(
-      'Delete Meal Plan',
-      `Are you sure you want to delete "${plan.name}"? This action cannot be undone.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            const success = await deleteMealPlan(plan.id);
-            if (success) {
-              setMealPlans(prev => prev.filter(p => p.id !== plan.id));
-              Alert.alert('Success', 'Meal plan deleted successfully');
-            } else {
-              Alert.alert('Error', 'Failed to delete meal plan');
-            }
-          }
-        }
-      ]
-    );
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'active':
-        return colors.success;
-      case 'draft':
-        return colors.warning;
-      case 'completed':
-        return colors.primary;
-      case 'cancelled':
-        return colors.error;
-      default:
-        return colors.textSecondary;
-    }
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case 'active':
-        return '🟢';
-      case 'draft':
-        return '📝';
-      case 'completed':
-        return '✅';
-      case 'cancelled':
-        return '❌';
-      default:
-        return '⚪';
-    }
-  };
-
-  const formatDateRange = (startDate: string, endDate: string) => {
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    
-    const startFormatted = start.toLocaleDateString('en-US', { 
-      month: 'short', 
-      day: 'numeric' 
-    });
-    const endFormatted = end.toLocaleDateString('en-US', { 
-      month: 'short', 
-      day: 'numeric',
-      year: 'numeric'
-    });
-    
-    return `${startFormatted} - ${endFormatted}`;
-  };
-
-  const calculateDuration = (startDate: string, endDate: string) => {
-    const start = new Date(startDate);
-    const end = new Date(endDate);
-    const diffTime = Math.abs(end.getTime() - start.getTime());
-    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-    return diffDays;
-  };
-
-  const filteredMealPlans = mealPlans.filter(plan => {
-    if (selectedFilter === 'all') return true;
-    return plan.status === selectedFilter;
-  });
-
-  const renderMealPlanCard = (plan: MealPlan) => {
-    const duration = calculateDuration(plan.start_date, plan.end_date);
+  const renderDayMeals = (day: DayOfWeek) => {
+    const dayMeals = formData.meals[day] || [];
     
     return (
-      <TouchableOpacity
-        key={plan.id}
-        style={styles.mealPlanCard}
-        onPress={() => handleViewPlan(plan.id)}
-        activeOpacity={0.7}
-      >
-        {/* Plan Image */}
-        <View style={styles.planImageContainer}>
-          {plan.title_image_url ? (
-            <Image 
-              source={{ uri: plan.title_image_url }} 
-              style={styles.planImage}
-              defaultSource={{ uri: 'https://images.pexels.com/photos/1640777/pexels-photo-1640777.jpeg?auto=compress&cs=tinysrgb&w=400' }}
-            />
+      <View style={styles.dayContainer} key={day}>
+        <TouchableOpacity 
+          style={styles.dayHeader}
+          onPress={() => toggleDay(day)}
+        >
+          <Text style={styles.dayTitle}>{day}</Text>
+          {expandedDay === day ? (
+            <ChevronUp size={20} color={colors.text} />
           ) : (
-            <LinearGradient
-              colors={[colors.primary, colors.primaryDark]}
-              style={styles.planImagePlaceholder}
-            >
-              <ChefHat size={32} color="#FFFFFF" />
-            </LinearGradient>
+            <ChevronDown size={20} color={colors.text} />
           )}
-          
-          {/* Status Badge */}
-          <View style={[styles.statusBadge, { backgroundColor: getStatusColor(plan.status) }]}>
-            <Text style={styles.statusText}>{getStatusIcon(plan.status)}</Text>
-          </View>
-        </View>
-
-        {/* Plan Info */}
-        <View style={styles.planInfo}>
-          <View style={styles.planHeader}>
-            <Text style={styles.planName} numberOfLines={2}>
-              {plan.name}
-            </Text>
-            <TouchableOpacity
-              style={styles.moreButton}
-              onPress={(e) => {
-                e.stopPropagation();
-                Alert.alert(
-                  'Meal Plan Actions',
-                  `What would you like to do with "${plan.name}"?`,
-                  [
-                    { text: 'Cancel', style: 'cancel' },
-                    { text: 'View Details', onPress: () => handleViewPlan(plan.id) },
-                    { text: 'Edit', onPress: () => handleEditPlan(plan.id) },
-                    { text: 'Delete', style: 'destructive', onPress: () => handleDeletePlan(plan) }
-                  ]
-                );
-              }}
-            >
-              <MoreVertical size={16} color={colors.textSecondary} />
-            </TouchableOpacity>
-          </View>
-
-          <View style={styles.clientInfo}>
-            <Users size={14} color={colors.textSecondary} />
-            <Text style={styles.clientName}>{plan.client_name}</Text>
-          </View>
-
-          {plan.description && (
-            <Text style={styles.planDescription} numberOfLines={2}>
-              {plan.description}
-            </Text>
-          )}
-
-          <View style={styles.planMeta}>
-            <View style={styles.metaItem}>
-              <Calendar size={14} color={colors.textSecondary} />
-              <Text style={styles.metaText}>{formatDateRange(plan.start_date, plan.end_date)}</Text>
-            </View>
-            <View style={styles.metaItem}>
-              <Clock size={14} color={colors.textSecondary} />
-              <Text style={styles.metaText}>{duration} days</Text>
-            </View>
-          </View>
-
-          <View style={styles.planActions}>
-            <TouchableOpacity
-              style={styles.actionButton}
-              onPress={(e) => {
-                e.stopPropagation();
-                handleViewPlan(plan.id);
-              }}
-            >
-              <Eye size={16} color={colors.primary} />
-              <Text style={styles.actionButtonText}>View</Text>
-            </TouchableOpacity>
-            
-            <TouchableOpacity
-              style={styles.actionButton}
-              onPress={(e) => {
-                e.stopPropagation();
-                handleEditPlan(plan.id);
-              }}
-            >
-              <Edit3 size={16} color={colors.success} />
-              <Text style={styles.actionButtonText}>Edit</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </TouchableOpacity>
-    );
-  };
-
-  const renderFilterTabs = () => (
-    <View style={styles.filterContainer}>
-      <ScrollView 
-        horizontal 
-        showsHorizontalScrollIndicator={false}
-        contentContainerStyle={styles.filterScrollContent}
-      >
-        {[
-          { key: 'all', label: 'All Plans', count: mealPlans.length },
-          { key: 'active', label: 'Active', count: mealPlans.filter(p => p.status === 'active').length },
-          { key: 'draft', label: 'Drafts', count: mealPlans.filter(p => p.status === 'draft').length },
-          { key: 'completed', label: 'Completed', count: mealPlans.filter(p => p.status === 'completed').length },
-        ].map((filter) => (
-          <TouchableOpacity
-            key={filter.key}
-            style={[
-              styles.filterTab,
-              selectedFilter === filter.key && styles.activeFilterTab
-            ]}
-            onPress={() => setSelectedFilter(filter.key as any)}
-          >
-            <Text style={[
-              styles.filterTabText,
-              selectedFilter === filter.key && styles.activeFilterTabText
-            ]}>
-              {filter.label}
-            </Text>
-            {filter.count > 0 && (
-              <View style={[
-                styles.filterBadge,
-                selectedFilter === filter.key && styles.activeFilterBadge
-              ]}>
-                <Text style={[
-                  styles.filterBadgeText,
-                  selectedFilter === filter.key && styles.activeFilterBadgeText
-                ]}>
-                  {filter.count}
+        </TouchableOpacity>
+        
+        {expandedDay === day && (
+          <View style={styles.dayContent}>
+            {['breakfast', 'lunch', 'dinner', 'morning_snack', 'afternoon_snack', 'evening_snack'].map((mealTime) => (
+              <View key={mealTime} style={styles.mealTimeContainer}>
+                <Text style={styles.mealTimeLabel}>
+                  {mealTime.split('_').map(word => word.charAt(0).toUpperCase() + word.slice(1)).join(' ')}
                 </Text>
+                
+                {dayMeals
+                  .filter(meal => meal.mealTime === mealTime)
+                  .map((meal, index) => {
+                    const mealItem = mealItems.find(item => item.id === meal.mealId);
+                    return (
+                      <View key={index} style={styles.mealItem}>
+                        <View style={styles.mealInfo}>
+                          <Text style={styles.mealName}>
+                            {mealItem?.name || 'Unknown Meal'}
+                          </Text>
+                          <Text style={styles.mealMacros}>
+                            {mealItem ? `${mealItem.calories} cal | P:${mealItem.protein_g}g C:${mealItem.carbs_g}g F:${mealItem.fat_g}g` : ''}
+                          </Text>
+                        </View>
+                        <TouchableOpacity 
+                          onPress={() => handleRemoveMeal(day, dayMeals.findIndex(m => m.mealId === meal.mealId && m.mealTime === mealTime))}
+                          style={styles.removeButton}
+                        >
+                          <X size={16} color={Colors.light.error} />
+                        </TouchableOpacity>
+                      </View>
+                    );
+                  })}
+                
+                <View style={styles.addMealContainer}>
+                  <TouchableOpacity 
+                    style={styles.mealSelectorButton}
+                    onPress={() => setShowMealSelector(true)}
+                  >
+                    <Text style={styles.mealSelectorText}>
+                      {selectedMeal ? mealItems.find(m => m.id === selectedMeal)?.name || 'Select a meal...' : 'Select a meal...'}
+                    </Text>
+                    <ChevronDown size={16} color={colors.text} />
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={styles.addButton}
+                    onPress={() => handleAddMeal(day, mealTime as MealTime)}
+                    disabled={!selectedMeal}
+                  >
+                    <Text style={styles.addButtonText}>Add</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
-            )}
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-    </View>
-  );
-
-  const renderEmptyState = () => (
-    <View style={styles.emptyContainer}>
-      <LinearGradient
-        colors={[colors.primary + '20', colors.primary + '10']}
-        style={styles.emptyIconContainer}
-      >
-        <ChefHat size={48} color={colors.primary} />
-      </LinearGradient>
-      <Text style={styles.emptyTitle}>No Meal Plans Yet</Text>
-      <Text style={styles.emptyText}>
-        Create your first meal plan to help your clients achieve their nutrition goals
-      </Text>
-      <TouchableOpacity style={styles.createFirstButton} onPress={handleCreateNew}>
-        <Plus size={20} color="#FFFFFF" />
-        <Text style={styles.createFirstButtonText}>Create First Meal Plan</Text>
-      </TouchableOpacity>
-    </View>
-  );
-
-  const renderStatsOverview = () => (
-    <View style={styles.statsContainer}>
-      <View style={styles.statCard}>
-        <View style={[styles.statIcon, { backgroundColor: `${colors.primary}15` }]}>
-          <ChefHat size={20} color={colors.primary} />
-        </View>
-        <Text style={styles.statNumber}>{mealPlans.length}</Text>
-        <Text style={styles.statLabel}>Total Plans</Text>
-      </View>
-      
-      <View style={styles.statCard}>
-        <View style={[styles.statIcon, { backgroundColor: `${colors.success}15` }]}>
-          <Star size={20} color={colors.success} />
-        </View>
-        <Text style={styles.statNumber}>{mealPlans.filter(p => p.status === 'active').length}</Text>
-        <Text style={styles.statLabel}>Active Plans</Text>
-      </View>
-      
-      <View style={styles.statCard}>
-        <View style={[styles.statIcon, { backgroundColor: `${colors.warning}15` }]}>
-          <Users size={20} color={colors.warning} />
-        </View>
-        <Text style={styles.statNumber}>{new Set(mealPlans.map(p => p.client_id)).size}</Text>
-        <Text style={styles.statLabel}>Clients</Text>
-      </View>
-    </View>
-  );
-
-  if (loading) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={styles.loadingText}>Loading meal plans...</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  if (error) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.errorContainer}>
-          <Text style={styles.errorTitle}>Unable to load meal plans</Text>
-          <Text style={styles.errorText}>{error}</Text>
-          <TouchableOpacity style={styles.retryButton} onPress={loadMealPlans}>
-            <Text style={styles.retryButtonText}>Try Again</Text>
-          </TouchableOpacity>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  return (
-    <SafeAreaView style={styles.container} edges={['top']}>
-      {/* Header */}
-      <View style={styles.header}>
-        <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-          <ArrowLeft size={24} color={colors.text} />
-        </TouchableOpacity>
-        
-        <Text style={styles.title}>Meal Plans</Text>
-        
-        <TouchableOpacity style={styles.createButton} onPress={handleCreateNew}>
-          <Plus size={20} color="#FFFFFF" />
-          <Text style={styles.createButtonText}>Create</Text>
-        </TouchableOpacity>
-      </View>
-
-      {/* Stats Overview */}
-      {mealPlans.length > 0 && renderStatsOverview()}
-
-      {/* Filter Tabs */}
-      {mealPlans.length > 0 && renderFilterTabs()}
-
-      {/* Content */}
-      <ScrollView
-        style={styles.content}
-        showsVerticalScrollIndicator={false}
-        refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-        }
-      >
-        {filteredMealPlans.length === 0 ? (
-          mealPlans.length === 0 ? renderEmptyState() : (
-            <View style={styles.noResultsContainer}>
-              <Text style={styles.noResultsTitle}>No {selectedFilter} meal plans</Text>
-              <Text style={styles.noResultsText}>
-                Try selecting a different filter or create a new meal plan
-              </Text>
-            </View>
-          )
-        ) : (
-          <View style={styles.mealPlansList}>
-            {filteredMealPlans.map(renderMealPlanCard)}
+            ))}
           </View>
         )}
+      </View>
+    );
+  };
 
-        <View style={{ height: 100 }} />
-      </ScrollView>
-
-      {/* Floating Action Button */}
-      {mealPlans.length > 0 && (
-        <TouchableOpacity style={styles.fab} onPress={handleCreateNew}>
-          <Plus size={28} color="#FFFFFF" strokeWidth={2} />
-        </TouchableOpacity>
+  return (
+    <ScrollView style={styles.container}>
+      {error && (
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>{error}</Text>
+        </View>
       )}
-    </SafeAreaView>
+      
+      <View style={styles.formGroup}>
+        <Text style={styles.label}>Meal Plan Name</Text>
+        <TextInput
+          style={styles.input}
+          value={formData.name}
+          onChangeText={(text) => setFormData(prev => ({ ...prev, name: text }))}
+          placeholder="e.g., Weight Loss Meal Plan"
+          placeholderTextColor="#999"
+        />
+      </View>
+      
+      <View style={styles.formGroup}>
+        <Text style={styles.label}>Description</Text>
+        <TextInput
+          style={[styles.input, styles.textArea]}
+          value={formData.description}
+          onChangeText={(text) => setFormData(prev => ({ ...prev, description: text }))}
+          placeholder="Describe this meal plan..."
+          placeholderTextColor="#999"
+          multiline
+          numberOfLines={3}
+        />
+      </View>
+      
+      <View style={styles.row}>
+        <View style={[styles.formGroup, { flex: 1, marginRight: 10 }]}>
+          <Text style={styles.label}>Category</Text>
+          <Picker
+            selectedValue={formData.category}
+            onValueChange={(value) => setFormData(prev => ({ ...prev, category: value }))}
+            style={styles.picker}
+          >
+            <Picker.Item label="Weight Loss" value="Weight Loss" />
+            <Picker.Item label="Muscle Gain" value="Muscle Gain" />
+            <Picker.Item label="Maintenance" value="Maintenance" />
+            <Picker.Item label="Vegan" value="Vegan" />
+            <Picker.Item label="Keto" value="Keto" />
+            <Picker.Item label="Low Carb" value="Low Carb" />
+            <Picker.Item label="High Protein" value="High Protein" />
+            <Picker.Item label="General" value="General" />
+          </Picker>
+        </View>
+        
+        <View style={[styles.formGroup, { flex: 1 }]}>
+          <Text style={styles.label}>Duration (weeks)</Text>
+          <TextInput
+            style={styles.input}
+            value={formData.durationWeeks}
+            onChangeText={(text) => setFormData(prev => ({ ...prev, durationWeeks: text }))}
+            placeholder="4"
+            placeholderTextColor="#999"
+            keyboardType="numeric"
+          />
+        </View>
+      </View>
+      
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>Nutritional Targets (optional)</Text>
+      </View>
+      
+      <View style={styles.row}>
+        <View style={[styles.formGroup, { flex: 1, marginRight: 10 }]}>
+          <Text style={styles.label}>Calories</Text>
+          <TextInput
+            style={styles.input}
+            value={formData.targetCalories}
+            onChangeText={(text) => {
+              setFormData(prev => ({
+                ...prev,
+                targetCalories: text
+              }));
+            }}
+            placeholder="e.g., 2000"
+            placeholderTextColor="#999"
+            keyboardType="numeric"
+          />
+        </View>
+        
+        <View style={[styles.formGroup, { flex: 1 }]}>
+          <Text style={styles.label}>Protein (g)</Text>
+          <TextInput
+            style={styles.input}
+            value={formData.targetProtein}
+            onChangeText={(text) => setFormData(prev => ({ ...prev, targetProtein: text }))}
+            placeholder="e.g., 150"
+            placeholderTextColor="#999"
+            keyboardType="numeric"
+          />
+        </View>
+      </View>
+      
+      <View style={styles.row}>
+        <View style={[styles.formGroup, { flex: 1, marginRight: 10 }]}>
+          <Text style={styles.label}>Carbs (g)</Text>
+          <TextInput
+            style={styles.input}
+            value={formData.targetCarbs}
+            onChangeText={(text) => setFormData(prev => ({ ...prev, targetCarbs: text }))}
+            placeholder="e.g., 200"
+            placeholderTextColor="#999"
+            keyboardType="numeric"
+          />
+        </View>
+        
+        <View style={[styles.formGroup, { flex: 1 }]}>
+          <Text style={styles.label}>Fat (g)</Text>
+          <TextInput
+            style={styles.input}
+            value={formData.targetFat}
+            onChangeText={(text) => setFormData(prev => ({ ...prev, targetFat: text }))}
+            placeholder="e.g., 65"
+            placeholderTextColor="#999"
+            keyboardType="numeric"
+          />
+        </View>
+      </View>
+      
+      <View style={styles.publicToggleContainer}>
+        <Text style={styles.publicToggleLabel}>Make this meal plan public</Text>
+        <Switch
+          value={formData.isPublic}
+          onValueChange={(value) => setFormData(prev => ({ ...prev, isPublic: value }))}
+          trackColor={{ false: '#767577', true: colors.primary }}
+          thumbColor="#f4f3f4"
+        />
+      </View>
+      
+      <View style={styles.sectionHeader}>
+        <Text style={styles.sectionTitle}>Weekly Meal Schedule</Text>
+      </View>
+      
+      {(['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] as DayOfWeek[]).map(day => 
+        renderDayMeals(day)
+      )}
+      
+      <TouchableOpacity 
+        style={[styles.submitButton, loading && styles.submitButtonDisabled]}
+        onPress={handleSubmit}
+        disabled={loading}
+      >
+        <Text style={styles.submitButtonText}>
+          {loading ? 'Saving...' : 'Save Meal Plan'}
+        </Text>
+      </TouchableOpacity>
+    </ScrollView>
   );
 }
 
-const createStyles = (colors: any) => StyleSheet.create({
+const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: colors.background,
+    padding: 16,
+    backgroundColor: '#fff',
   },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 16,
+  formGroup: {
+    marginBottom: 16,
   },
-  loadingText: {
-    fontFamily: 'Inter-Regular',
+  label: {
+    fontSize: 14,
+    fontWeight: '500',
+    marginBottom: 6,
+    color: '#333',
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    padding: 12,
     fontSize: 16,
-    color: colors.textSecondary,
+    backgroundColor: '#f9f9f9',
+  },
+  textArea: {
+    minHeight: 80,
+    textAlignVertical: 'top',
+  },
+  picker: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 8,
+    backgroundColor: '#f9f9f9',
+  },
+  row: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  sectionHeader: {
+    marginTop: 24,
+    marginBottom: 12,
+    paddingBottom: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#eee',
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: colors.primary,
+  },
+  publicToggleContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginVertical: 16,
+    padding: 12,
+    backgroundColor: '#f5f5f5',
+    borderRadius: 8,
+  },
+  publicToggleLabel: {
+    fontSize: 14,
+    color: '#555',
+  },
+  dayContainer: {
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#eee',
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  dayHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 12,
+    backgroundColor: '#f8f8f8',
+  },
+  dayTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+  },
+  dayContent: {
+    padding: 12,
+  },
+  mealTimeContainer: {
+    marginBottom: 16,
+  },
+  mealTimeLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#666',
+    marginBottom: 8,
+  },
+  mealItem: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#f9f9f9',
+    padding: 10,
+    borderRadius: 6,
+    marginBottom: 8,
+  },
+  mealInfo: {
+    flex: 1,
+  },
+  mealName: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#333',
+  },
+  mealMacros: {
+    fontSize: 12,
+    color: '#888',
+    marginTop: 2,
+  },
+  removeButton: {
+    padding: 4,
+  },
+  addMealContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  mealPicker: {
+    flex: 1,
+    height: 40,
+    marginRight: 8,
+    backgroundColor: '#f9f9f9',
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 6,
+  },
+  addButton: {
+    backgroundColor: colors.primary,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 6,
+  },
+  addButtonText: {
+    color: '#fff',
+    fontWeight: '500',
+  },
+  submitButton: {
+    backgroundColor: colors.primary,
+    padding: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+    marginTop: 24,
+    marginBottom: 40,
+  },
+  submitButtonDisabled: {
+    backgroundColor: '#ccc',
+  },
+  submitButtonText: {
+    color: '#fff',
+    fontSize: 16,
+    fontWeight: '600',
   },
   errorContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 40,
-  },
-  errorTitle: {
-    fontFamily: 'Inter-Bold',
-    fontSize: 20,
-    color: colors.text,
-    marginBottom: 8,
-    textAlign: 'center',
+    backgroundColor: '#ffebee',
+    padding: 12,
+    borderRadius: 6,
+    marginBottom: 16,
   },
   errorText: {
-    fontFamily: 'Inter-Regular',
-    fontSize: 16,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: 24,
-  },
-  retryButton: {
-    backgroundColor: colors.primary,
-    borderRadius: 8,
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-  },
-  retryButtonText: {
-    fontFamily: 'Inter-SemiBold',
-    fontSize: 16,
-    color: '#FFFFFF',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.border,
-    backgroundColor: colors.surface,
-  },
-  backButton: {
-    padding: 4,
-  },
-  title: {
-    fontFamily: 'Inter-Bold',
-    fontSize: 20,
-    color: colors.text,
-    flex: 1,
-    textAlign: 'center',
-  },
-  createButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.primary,
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    gap: 6,
-  },
-  createButtonText: {
-    fontFamily: 'Inter-SemiBold',
+    color: '#d32f2f',
     fontSize: 14,
-    color: '#FFFFFF',
-  },
-  statsContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    gap: 12,
-  },
-  statCard: {
-    flex: 1,
-    backgroundColor: colors.surface,
-    borderRadius: 12,
-    padding: 16,
-    alignItems: 'center',
-    shadowColor: colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 1,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  statIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  statNumber: {
-    fontFamily: 'Inter-Bold',
-    fontSize: 18,
-    color: colors.text,
-    marginBottom: 4,
-  },
-  statLabel: {
-    fontFamily: 'Inter-Medium',
-    fontSize: 12,
-    color: colors.textSecondary,
-    textAlign: 'center',
-  },
-  filterContainer: {
-    paddingVertical: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: colors.borderLight,
-  },
-  filterScrollContent: {
-    paddingHorizontal: 20,
-  },
-  filterTab: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.surface,
-    borderRadius: 20,
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    marginRight: 12,
-    gap: 6,
-  },
-  activeFilterTab: {
-    backgroundColor: colors.primary,
-  },
-  filterTabText: {
-    fontFamily: 'Inter-Medium',
-    fontSize: 14,
-    color: colors.textSecondary,
-  },
-  activeFilterTabText: {
-    color: '#FFFFFF',
-  },
-  filterBadge: {
-    backgroundColor: colors.borderLight,
-    borderRadius: 10,
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    minWidth: 20,
-    alignItems: 'center',
-  },
-  activeFilterBadge: {
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-  },
-  filterBadgeText: {
-    fontFamily: 'Inter-Bold',
-    fontSize: 10,
-    color: colors.textSecondary,
-  },
-  activeFilterBadgeText: {
-    color: '#FFFFFF',
-  },
-  content: {
-    flex: 1,
-  },
-  mealPlansList: {
-    paddingHorizontal: 20,
-    paddingTop: 16,
-  },
-  mealPlanCard: {
-    backgroundColor: colors.surface,
-    borderRadius: 16,
-    marginBottom: 16,
-    overflow: 'hidden',
-    shadowColor: colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 1,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  planImageContainer: {
-    height: 120,
-    position: 'relative',
-  },
-  planImage: {
-    width: '100%',
-    height: '100%',
-    resizeMode: 'cover',
-  },
-  planImagePlaceholder: {
-    width: '100%',
-    height: '100%',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  statusBadge: {
-    position: 'absolute',
-    top: 12,
-    right: 12,
-    width: 28,
-    height: 28,
-    borderRadius: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  statusText: {
-    fontSize: 14,
-  },
-  planInfo: {
-    padding: 16,
-  },
-  planHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 8,
-  },
-  planName: {
-    fontFamily: 'Inter-Bold',
-    fontSize: 18,
-    color: colors.text,
-    flex: 1,
-    marginRight: 8,
-  },
-  moreButton: {
-    padding: 4,
-  },
-  clientInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 8,
-    gap: 6,
-  },
-  clientName: {
-    fontFamily: 'Inter-Medium',
-    fontSize: 14,
-    color: colors.textSecondary,
-  },
-  planDescription: {
-    fontFamily: 'Inter-Regular',
-    fontSize: 14,
-    color: colors.textSecondary,
-    lineHeight: 20,
-    marginBottom: 12,
-  },
-  planMeta: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 16,
-  },
-  metaItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  metaText: {
-    fontFamily: 'Inter-Regular',
-    fontSize: 12,
-    color: colors.textSecondary,
-  },
-  planActions: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  actionButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: colors.surfaceSecondary,
-    borderRadius: 8,
-    paddingVertical: 10,
-    gap: 6,
-  },
-  actionButtonText: {
-    fontFamily: 'Inter-SemiBold',
-    fontSize: 12,
-    color: colors.text,
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 40,
-    paddingVertical: 60,
-  },
-  emptyIconContainer: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: 24,
-  },
-  emptyTitle: {
-    fontFamily: 'Inter-Bold',
-    fontSize: 24,
-    color: colors.text,
-    marginBottom: 12,
-    textAlign: 'center',
-  },
-  emptyText: {
-    fontFamily: 'Inter-Regular',
-    fontSize: 16,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 24,
-    marginBottom: 32,
-  },
-  createFirstButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: colors.primary,
-    borderRadius: 12,
-    paddingHorizontal: 24,
-    paddingVertical: 16,
-    gap: 8,
-  },
-  createFirstButtonText: {
-    fontFamily: 'Inter-SemiBold',
-    fontSize: 16,
-    color: '#FFFFFF',
-  },
-  noResultsContainer: {
-    alignItems: 'center',
-    paddingVertical: 60,
-    paddingHorizontal: 40,
-  },
-  noResultsTitle: {
-    fontFamily: 'Inter-SemiBold',
-    fontSize: 18,
-    color: colors.text,
-    marginBottom: 8,
-    textAlign: 'center',
-  },
-  noResultsText: {
-    fontFamily: 'Inter-Regular',
-    fontSize: 14,
-    color: colors.textSecondary,
-    textAlign: 'center',
-    lineHeight: 20,
-  },
-  fab: {
-    position: 'absolute',
-    bottom: 90,
-    right: 20,
-    width: 56,
-    height: 56,
-    backgroundColor: colors.primary,
-    borderRadius: 28,
-    justifyContent: 'center',
-    alignItems: 'center',
-    shadowColor: colors.shadow,
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 1,
-    shadowRadius: 8,
-    elevation: 8,
   },
 });
