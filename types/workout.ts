@@ -226,6 +226,31 @@ export interface ActiveExercise {
   notes: string;
 }
 
+// Meal Item interface for the meal library
+export interface MealItem {
+  id: string;
+  name: string;
+  description?: string;
+  category: string;
+  calories: number;
+  protein_g: number;
+  carbs_g: number;
+  fat_g: number;
+  fiber_g: number;
+  image_url?: string;
+  is_ai_generated: boolean;
+  serving_size: string;
+  preparation_time_minutes: number;
+  cooking_instructions?: string;
+  ingredients?: string[];
+  allergens?: string[];
+  dietary_tags?: string[];
+  created_by?: string;
+  is_public: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
 // Meal Plan Interfaces
 export interface MealPlan {
   id: string;

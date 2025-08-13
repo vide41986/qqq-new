@@ -115,9 +115,8 @@ export default function CreateMealPlanScreen() {
   const [showClientPicker, setShowClientPicker] = useState(false);
   const [showStartDatePicker, setShowStartDatePicker] = useState(false);
   const [showEndDatePicker, setShowEndDatePicker] = useState(false);
-  const [showMealTypePicker, setShowMealTypePicker] = useState(false);
+  const [showMealItemPicker, setShowMealItemPicker] = useState(false);
   const [editingMeal, setEditingMeal] = useState<{ dayIndex: number; mealIndex: number } | null>(null);
-  const [tempMeal, setTempMeal] = useState<MealEntry | null>(null);
 
   const isEditing = !!edit;
 

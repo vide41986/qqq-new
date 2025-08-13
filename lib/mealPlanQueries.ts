@@ -262,3 +262,78 @@ export const getMealTypes = async () => {
     return [];
   }
 };
+
+// Get meal items for selection
+export const getMealItems = async () => {
+  try {
+    const profile = await getCurrentUserProfile();
+    if (!profile) {
+      console.error('User profile not found');
+      return [];
+    }
+
+    const { data, error } = await supabase
+      .from('meal_items')
+      .select('*')
+      .or(`created_by.eq.${profile.id},is_public.eq.true`)
+      .order('name', { ascending: true });
+
+    if (error) {
+      console.error('Error fetching meal items:', error);
+      return [];
+    }
+
+    return data || [];
+  } catch (error) {
+    console.error('Error in getMealItems:', error);
+    return [];
+  }
+};
+
+// Create a new meal item
+export const createMealItem = async (mealItemData: {
+  name: string;
+  description?: string;
+  category?: string;
+  calories?: number;
+  protein_g?: number;
+  carbs_g?: number;
+  fat_g?: number;
+  fiber_g?: number;
+  image_url?: string;
+  is_ai_generated?: boolean;
+  serving_size?: string;
+  preparation_time_minutes?: number;
+  cooking_instructions?: string;
+  ingredients?: string[];
+  allergens?: string[];
+  dietary_tags?: string[];
+  is_public?: boolean;
+}) => {
+  try {
+    const profile = await getCurrentUserProfile();
+    if (!profile || profile.role !== 'nutritionist') {
+      console.error('User is not a nutritionist');
+      return null;
+    }
+
+    const { data, error } = await supabase
+      .from('meal_items')
+      .insert({
+        ...mealItemData,
+        created_by: profile.id,
+      })
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error creating meal item:', error);
+      return null;
+    }
+
+    return data;
+  } catch (error) {
+    console.error('Error in createMealItem:', error);
+    return null;
+  }
+};
