@@ -30,6 +30,7 @@ import {
   ChefHat,
   Target,
   Zap,
+  ChevronRight,
 } from 'lucide-react-native';
 import { useColorScheme, getColors } from '@/hooks/useColorScheme';
 import { router, useLocalSearchParams } from 'expo-router';
