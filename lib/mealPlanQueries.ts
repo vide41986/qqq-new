@@ -290,6 +290,73 @@ export const getMealItems = async () => {
   }
 };
 
+// Get meal plans assigned to a client
+export const getClientMealPlans = async (): Promise<MealPlan[]> => {
+  try {
+    const profile = await getCurrentUserProfile();
+    if (!profile || profile.role !== 'client') {
+      console.error('User is not a client');
+      return [];
+    }
+
+    const { data, error } = await supabase
+      .from('meal_plans')
+      .select(`
+        *,
+        nutritionist:profiles!meal_plans_nutritionist_id_fkey(id, full_name, email)
+      `)
+      .eq('client_id', profile.id)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching client meal plans:', error);
+      return [];
+    }
+
+    return (data || []).map(plan => ({
+      ...plan,
+      nutritionist_name: plan.nutritionist?.full_name || 'Unknown Nutritionist'
+    }));
+  } catch (error) {
+    console.error('Error in getClientMealPlans:', error);
+    return [];
+  }
+};
+
+// Get detailed meal plan with all days and entries
+export const getDetailedMealPlan = async (planId: string): Promise<any> => {
+  try {
+    const { data, error } = await supabase
+      .from('meal_plans')
+      .select(`
+        *,
+        nutritionist:profiles!meal_plans_nutritionist_id_fkey(id, full_name, email),
+        meal_plan_days(
+          *,
+          meal_plan_entries(
+            *,
+            meal_type:meal_types(name, emoji, color)
+          )
+        )
+      `)
+      .eq('id', planId)
+      .single();
+
+    if (error) {
+      console.error('Error fetching detailed meal plan:', error);
+      return null;
+    }
+
+    return {
+      ...data,
+      nutritionist_name: data.nutritionist?.full_name || 'Unknown Nutritionist'
+    };
+  } catch (error) {
+    console.error('Error in getDetailedMealPlan:', error);
+    return null;
+  }
+};
+
 // Create a new meal item
 export const createMealItem = async (mealItemData: {
   name: string;

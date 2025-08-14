@@ -14,7 +14,7 @@ import {
   Plus, 
   Footprints, 
   Target, 
-  UtensilsCrossed,
+  ChefHat,
   TrendingUp,
   Calendar,
   X,
@@ -1260,19 +1260,22 @@ export default function TodayClientViewNew() {
           </TouchableOpacity>
         </View>
 
-        {/* Food Journal */}
+        {/* Meal Plans */}
         <View style={styles.card}>
           <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>Food Journal</Text>
-            <UtensilsCrossed size={24} color={safeColors.warning} />
+            <Text style={styles.cardTitle}>My Meal Plans</Text>
+            <ChefHat size={24} color={colors.warning} />
           </View>
           
           <Text style={styles.cardSubtitle}>
-            What did you eat today?
+            View your personalized meal plans
           </Text>
           
-          <TouchableOpacity style={styles.actionButton} onPress={handleAddMeal}>
-            <Text style={styles.actionButtonText}>Add meal</Text>
+          <TouchableOpacity 
+            style={styles.actionButton} 
+            onPress={() => router.push('/client-meal-plans')}
+          >
+            <Text style={styles.actionButtonText}>View Meal Plans</Text>
           </TouchableOpacity>
         </View>
 

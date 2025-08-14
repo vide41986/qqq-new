@@ -265,6 +265,7 @@ export interface MealPlan {
   created_at: string;
   updated_at: string;
   client_name?: string;
+  nutritionist_name?: string;
 }
 
 export interface MealPlanDay {
