@@ -33,6 +33,8 @@ import { router } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { getClientTrainingSessions } from '../../lib/trainingSessionQueries';
 import { TrainingSession } from '../../types/workout';
+import HealthDataWidget from '../HealthDataWidget';
+
 import { getValidImageUrl, getExerciseImage, getWorkoutImageByCategory } from '../../utils/imageUtils';
 import { supabase } from '../../lib/supabase';
 import { getSessionNotifications } from '../../lib/trainerQueries';
@@ -1191,34 +1193,9 @@ export default function TodayClientViewNew() {
           </View>
         )}
 
+        <HealthDataWidget compact={true} showSettings={true} />
+
         {/* Steps Tracker */}
-        <View style={styles.card}>
-          <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>Steps tracker</Text>
-            <Footprints size={24} color={safeColors.primary} />
-          </View>
-          
-          <View style={styles.stepsContent}>
-            <View style={styles.stepsInfo}>
-              <Text style={styles.stepsNumber}>
-                {steps.toLocaleString()}
-              </Text>
-              <Text style={styles.stepsGoal}>/ {stepGoal.toLocaleString()} steps</Text>
-            </View>
-            
-            <View style={styles.progressContainer}>
-              <View style={styles.progressBackground}>
-                <View 
-                  style={[
-                    styles.progressFill, 
-                    { width: `${Math.min(stepProgress, 100)}%` }
-                  ]} 
-                />
-              </View>
-              <Text style={styles.progressText}>{Math.round(stepProgress)}%</Text>
-            </View>
-          </View>
-        </View>
 
         {/* Quick Actions */}
         <View style={styles.card}>

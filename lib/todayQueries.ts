@@ -1,4 +1,5 @@
 import { supabase } from './supabase';
+import { healthManager } from './healthIntegration';
 
 export interface TodayClientData {
   profile: any;
@@ -87,6 +88,22 @@ export const getClientTodayData = async (): Promise<TodayClientData | null> => {
       .eq('user_id', profile.id)
       .eq('date', today)
       .single();
+
+    // Get today's health data from health integration
+    let healthData = null;
+    try {
+      healthData = await healthManager.getTodaysHealthData();
+    } catch (error) {
+      console.warn('Could not fetch health data:', error);
+    }
+
+    // Merge health data with existing stats
+    const mergedStats = {
+      ...todayStats,
+      steps: healthData?.steps || todayStats?.steps || 0,
+      sleep_hours: healthData?.sleepHours || todayStats?.sleep_hours || 0,
+      calories_burned: healthData?.caloriesBurned || todayStats?.calories_burned || 0,
+    };
 
     // Get today's workout sessions
     const { data: workoutSessions } = await supabase
@@ -310,7 +327,7 @@ console.log('DEBUG: Final todaysWorkoutTemplate object before return:', todaysWo
 
     return {
       profile,
-      todayStats: todayStats || null,
+      todayStats: mergedStats || null,
       workoutSessions: workoutSessions || [],
       activeGoals: activeGoals || [],
       pinnedGoals: pinnedGoals || [],
